@@ -11,11 +11,11 @@
 #
 # Author: Alton Johnson
 # Contact: alton.jx@gmail.com
-# Version: 2.4
-# Updated: 01/23/2014
+# Version: 2.5
+# Updated: 6/5/2019
 #
 
-import commands, time, getopt, re, os
+import commands, time, re, os, argparse
 from sys import argv
 
 start_time = time.time()
@@ -34,75 +34,49 @@ banner += "\n *	 / __| '_ ` _ \| '_ \  / //  \\\\ \ 		*"
 banner += "\n *	 \__ \ | | | | | |_) |   |\__/|			*"
 banner += "\n *	 |___/_| |_| |_|_.__/				*"
 banner += "\n *							*"
-banner += "\n * SMB Spider v2.4, Alton Johnson (alton.jx@gmail.com) 	*"
+banner += "\n * SMB Spider v2.5, Alton Johnson (alton.jx@gmail.com) 	*"
 banner += "\n " + "*" * 56 + "\n"
 
-def help():
-	print banner
-	print " Usage: %s <OPTIONS>" % argv[0]
-	print colors.red + "\n Target(s) (required): \n" + colors.norm
-	print "\t -h <host>\t Provide IP address or a text file containing IPs."
-	print "\t\t\t Supported formats: IP, smb://ip/share, \\\\ip\\share\\"
-	print colors.red + "\n Credentials (required): \n" + colors.norm
-	print "\t -u <user>\t Specify a valid username to authenticate to the system(s)."
-	print "\t -p <pass>\t Specify the password which goes with the username."
-	print "\t -P <hash>\t Use -P to provide password hash if cleartext password isn't known."
-	print "\t -d <domain>\t If using a domain account, provide domain name."
-	print colors.green + "\n Shares (optional):\n" + colors.norm
-	print "\t -s <share>\t Specify shares (separate by comma) or specify \"profile\" to spider user profiles."
-	print "\t -f <file>\t Specify a list of shares from a file."
-	print colors.green + "\n Other (optional):\n" + colors.norm
-	print "\t -w \t\t Avoid verbose output. Output successful spider results to smbspider_host_share_user.txt."
-	print "\t\t\t This option is HIGHLY recommended if numerous systems are being scanned."
-	print "\t -n \t\t ** Ignore authentication check prior to spidering."
-	print "\t -g <file> \t Grab (download) files that match strings provided in text file. (Case sensitive.)"
-	print "\t\t\t ** Examples: *assword.doc, *assw*.doc, pass*.xls, etc."
-	print colors.norm
-	exit()
 
-def start(argv):
-	if len(argv) < 1:
-		help()
-	try:
-		opts, args = getopt.getopt(argv, "u:p:d:h:s:f:P:wng:")
-	except getopt.GetoptError, err:
-		print colors.red + "\n  [-] Error: " + str(err) + colors.norm
-	
-	# set default variables to prevent errors later in script
-	sensitive_strings = []
-	smb_user = ""
-	smb_pass = ""
-	smb_domain = ""
-	smb_host = []
-	smb_share = ["profile"]
-	pth = False
-	output = False
-	unique_systems = []
-	ignorecheck = False
-	inputfile = False
+parser= argparse.ArgumentParser()
+parser.add_argument("h", dest='smb_host', default=[], help = "Provide IP address or a text file containing IPs. \
+			 Supported formats: IP, smb://ip/share, \\ip\share\ ")
+parser.add_argument("u", "user", dest='smb_user', default="", help = "Specify a valid username to authenticate to the system(s).")
+parser.add_argument("p", "pass", dest='smb_pass', default="", help = "Specify the password which goes with the username.")
+parser.add_argument("-P", "--pth", dest="pth", default=False, help="Use -P to provide password hash if cleartext password isn't known.")
+parser.add_argument("-d", "--domain", dest="smb_domain", default="", help = "If using a domain account, provide domain name.")
+parser.add_argument("-s", "--share", dest="smb_share", default=["profile"], help="Specify shares (separate by comma) or specify \
+			\"profile\" to spider user profiles.")
+parser.add_argument("-f", help="Specify a list of shares from a file.")
+parser.add_argument("-w", dest="output", action='store_true', help="Avoid verbose output. Output successful spider results \
+			to smbspider_host_share_user.txt. This option is HIGHLY recommended if numerous systems are being scanned.")
+parser.add_argument("-n", dest="ignorecheck", action='store_true', help="** Ignore authentication check prior to spidering.")
+parser.add_argument("-g", dest="inputfile", default=False, help="Grab (download) files that match strings provided in \
+			text file. (Case sensitive.) ** Examples: *assword.doc, *assw*.doc, pass*.xls, etc.")
+result=parser.parse_args()
 
-	#parse through arguments
-	for opt, arg in opts:
-		if opt == "-u":
-			smb_user = arg
-		elif opt == "-p":
-			smb_pass = arg
-		elif opt == "-d":
-			smb_domain = arg
-		elif opt == "-h":
-			try:
-				smb_host = open(arg).read().split('\n')
-				inputfile = True
-			except:
-				if "\\\\" in arg and "\\" not in arg[-1:]:
-					test = arg[2:].replace("\\","\\")
-					smb_host.append("\\\\%s\\" % test)
-				else:
-					smb_host.append(arg)
-		elif opt == "-f":
-			smb_share = open(arg).read().split()
-		elif opt == "-s":
-			smb_share = arg.split(',')
+# set default variables to prevent errors later in script
+sensitive_strings = []
+unique_systems = []
+
+
+# read and parse smb_host
+try:
+	smb_host = smb_host.split('\n')
+	inputfile = True
+except:
+	if "\\\\" in smb_host and "\\" not in smb_host[-1:]:
+		test = smb_host[2:].replace("\\","\\")
+		smb_host.append("\\\\%s\\" % test)
+	else:
+		smb_host.append(smb_host)
+
+if smb_share:
+	smb_share = smb_share.split()
+	smb_share = smb_host.split(',')
+
+
+
 		elif opt == "-P":
 			if arg[-3:] == ":::":
 				arg = arg[:-3]
@@ -116,9 +90,7 @@ def start(argv):
 			sensitive_strings = open(arg).read().split("\n")[:-1]
 
 	#check options before proceeding
-	if (not smb_user or not smb_pass or not smb_host):
-		print colors.red + "\n [-] " + colors.norm + "Error: Please check to ensure that all required options are provided."
-		help()
+
 	if pth:
 		result = commands.getoutput("pth-smbclient")
 		if "not found" in result.lower():
