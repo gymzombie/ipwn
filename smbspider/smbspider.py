@@ -37,14 +37,16 @@ banner += "\n *							*"
 banner += "\n * SMB Spider v2.5, Alton Johnson (alton.jx@gmail.com) 	*"
 banner += "\n " + "*" * 56 + "\n"
 
-
 parser= argparse.ArgumentParser()
-parser.add_argument("h", dest='smb_host', default=[], help = "Provide IP address or a text file containing IPs. \
-			 Supported formats: IP, smb://ip/share, \\ip\share\ ")
-parser.add_argument("u", "user", dest='smb_user', default="", help = "Specify a valid username to authenticate to the system(s).")
-parser.add_argument("p", "pass", dest='smb_pass', default="", help = "Specify the password which goes with the username.")
-parser.add_argument("-P", "--pth", dest="pth", default=False, help="Use -P to provide password hash if cleartext password isn't known.")
-parser.add_argument("-d", "--domain", dest="smb_domain", default="", help = "If using a domain account, provide domain name.")
+parser.add_argument("-H", dest='smb_host', default=[], metavar="", required=True,
+					help="Provide IP address or a text file containing IPs. \
+						Supported formats: IP, smb://ip/share, \\ip\share\ ")
+parser.add_argument("-u", "--user", dest='smb_user', default="", metavar="", required=True,
+					help="Specify a valid username to authenticate to the system(s).")
+creds = parser.add_mutually_exclusive_group()
+creds.add_argument("-p", "--pass", dest='smb_pass', default="", help ="Specify the password which goes with the username.")
+creds.add_argument("-P", "--pth", dest="pth", default=False, help="Use -P to provide password hash if cleartext password isn't known.")
+parser.add_argument("-d", "--domain", dest="smb_domain", default="", help= "If using a domain account, provide domain name.")
 parser.add_argument("-s", "--share", dest="smb_share", default=["profile"], help="Specify shares (separate by comma) or specify \
 			\"profile\" to spider user profiles.")
 parser.add_argument("-f", help="Specify a list of shares from a file.")
@@ -53,17 +55,23 @@ parser.add_argument("-w", dest="output", action='store_true', help="Avoid verbos
 parser.add_argument("-n", dest="ignorecheck", action='store_true', help="** Ignore authentication check prior to spidering.")
 parser.add_argument("-g", dest="inputfile", default=False, help="Grab (download) files that match strings provided in \
 			text file. (Case sensitive.) ** Examples: *assword.doc, *assw*.doc, pass*.xls, etc.")
-result=parser.parse_args()
+args = parser.parse_args()
 
 # set default variables to prevent errors later in script
 sensitive_strings = []
 unique_systems = []
 
 
+if args.pass:
+
+elif args.pth:
+
+
 # read and parse smb_host
 try:
 	smb_host = smb_host.split('\n')
 	inputfile = True
+	pass
 except:
 	if "\\\\" in smb_host and "\\" not in smb_host[-1:]:
 		test = smb_host[2:].replace("\\","\\")
@@ -76,27 +84,23 @@ if smb_share:
 	smb_share = smb_host.split(',')
 
 
+if pth == ":::":
+	pth = pth[:-3]
+	smb_pass = pth
+	pth = True
 
-		elif opt == "-P":
-			if arg[-3:] == ":::":
-				arg = arg[:-3]
-			smb_pass = arg
-			pth = True
-		elif opt == "-w":
-			output = True
-		elif opt == "-n":
-			ignorecheck = True
-		elif opt == "-g":
-			sensitive_strings = open(arg).read().split("\n")[:-1]
+
+if inputfile:
+	sensitive_strings = inputfile.read().split("\n")[:-1]
 
 	#check options before proceeding
 
-	if pth:
-		result = commands.getoutput("pth-smbclient")
-		if "not found" in result.lower():
-			print colors.red + "\n [-] " + colors.norm + "Error: The passing-the-hash package was not found. Therefore, you cannot pass hashes."
-			print "Please run \"apt-get install passing-the-hash\" to fix this error and try running the script again.\n"
-			exit()
+if args.pth:
+	result = commands.getoutput("pth-smbclient")
+	if "not found" in result.lower():
+		print colors.red + "\n [-] " + colors.norm + "Error: The passing-the-hash package was not found. Therefore, you cannot pass hashes."
+		print "Please run \"apt-get install passing-the-hash\" to fix this error and try running the script again.\n"
+		exit()
 
 	#make smb_domain, smb_user, and smb_pass one variable
 	if smb_domain:
